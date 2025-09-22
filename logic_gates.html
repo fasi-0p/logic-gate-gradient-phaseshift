@@ -58,7 +58,7 @@
             border: none;
             border-radius: 8px;
             color: white;
-            cursor: grab;
+            cursor: pointer;
             font-size: 12px;
             text-align: center;
             transition: all 0.3s ease;
@@ -71,7 +71,6 @@
         }
 
         .tool-item:active {
-            cursor: grabbing;
             transform: scale(0.95);
         }
 
@@ -113,6 +112,14 @@
 
         .toolbar .reset-btn:hover {
             box-shadow: 0 3px 10px rgba(244, 67, 54, 0.4);
+        }
+
+        .toolbar .new-target-btn {
+            background: linear-gradient(145deg, #ff9800, #f57c00);
+        }
+
+        .toolbar .new-target-btn:hover {
+            box-shadow: 0 3px 10px rgba(255, 152, 0, 0.4);
         }
 
         .target-display {
@@ -290,12 +297,34 @@
             100% { transform: translate(-50%, -50%) scale(1); }
         }
 
-        .drag-preview {
+        .rules-window {
             position: fixed;
-            pointer-events: none;
-            z-index: 1000;
-            opacity: 0.8;
+            bottom: 15px;
+            right: 15px;
+            width: 250px;
+            max-height: 200px;
+            background: rgba(255, 255, 255, 0);
+            border: 2px solid #64b5f6;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 12px;
+            overflow-y: auto;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            z-index: 2000;
         }
+
+        .rules-window h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #ffeb3b;
+        }
+
+        .rules-window ul {
+            padding-left: 18px;
+            list-style: disc;
+        }
+
     </style>
 </head>
 <body>
@@ -305,27 +334,25 @@
             
             <div class="tool-section">
                 <h3>Logic Gates</h3>
-                <div class="tool-item" draggable="true" data-type="AND">AND Gate</div>
-                <div class="tool-item" draggable="true" data-type="OR">OR Gate</div>
-                <div class="tool-item" draggable="true" data-type="NOT">NOT Gate</div>
-                <div class="tool-item" draggable="true" data-type="XOR">XOR Gate</div>
-                <div class="tool-item" draggable="true" data-type="NAND">NAND Gate</div>
-                <div class="tool-item" draggable="true" data-type="NOR">NOR Gate</div>
+                <div class="tool-item" onclick="addComponent('NOT')">NOT Gate</div>
+                <div class="tool-item" onclick="addComponent('XOR')">XOR Gate</div>
+                <div class="tool-item" onclick="addComponent('NAND')">NAND Gate</div>
+                <div class="tool-item" onclick="addComponent('NOR')">NOR Gate</div>
             </div>
 
             <div class="tool-section">
                 <h3>Inputs</h3>
-                <div class="tool-item" draggable="true" data-type="INPUT_0">Input 0</div>
-                <div class="tool-item" draggable="true" data-type="INPUT_1">Input 1</div>
-                <div class="tool-item" draggable="true" data-type="POWER">Power Supply</div>
+                <div class="tool-item" onclick="addComponent('INPUT_0')">Input 0</div>
+                <div class="tool-item" onclick="addComponent('INPUT_1')">Input 1</div>
+                <div class="tool-item" onclick="addComponent('POWER')">Power Supply</div>
             </div>
 
             <div class="tool-section">
                 <h3>Outputs</h3>
-                <div class="tool-item" draggable="true" data-type="OUTPUT_Q0">Output Q0</div>
-                <div class="tool-item" draggable="true" data-type="OUTPUT_Q1">Output Q1</div>
-                <div class="tool-item" draggable="true" data-type="OUTPUT_Q2">Output Q2</div>
-                <div class="tool-item" draggable="true" data-type="OUTPUT_Q3">Output Q3</div>
+                <div class="tool-item" onclick="addComponent('OUTPUT_Q0')">Output Q0</div>
+                <div class="tool-item" onclick="addComponent('OUTPUT_Q1')">Output Q1</div>
+                <div class="tool-item" onclick="addComponent('OUTPUT_Q2')">Output Q2</div>
+                <div class="tool-item" onclick="addComponent('OUTPUT_Q3')">Output Q3</div>
             </div>
         </div>
 
@@ -333,10 +360,9 @@
             <div class="toolbar">
                 <button onclick="evaluateCircuit()">Evaluate Circuit</button>
                 <button class="reset-btn" onclick="resetCircuit()">Reset All</button>
-                <!-- <button onclick="saveCircuit()">Save Circuit</button> -->
-                <!-- <button onclick="loadCircuit()">Load Circuit</button> -->
+                <!-- <button class="new-target-btn" onclick="newTarget()">New Target</button> -->
                 <div class="target-display">
-                    Target: <span class="target-code" id="targetCode"></span>
+                    Target: <span class="target-code" id="targetCode">0000</span>
                 </div>
             </div>
 
@@ -345,10 +371,10 @@
                 <div class="output-display">
                     <div>Current Output:</div>
                     <div class="output-bits">
-                        <div class="bit" id="q3">0</div>
-                        <div class="bit" id="q2">0</div>
-                        <div class="bit" id="q1">0</div>
                         <div class="bit" id="q0">0</div>
+                        <div class="bit" id="q1">0</div>
+                        <div class="bit" id="q2">0</div>
+                        <div class="bit" id="q3">0</div>
                     </div>
                 </div>
             </div>
@@ -357,615 +383,571 @@
 
     <script>
         class CircuitBuilder {
-            constructor() {
-                this.canvas = document.getElementById('canvas');
-                this.components = new Map();
-                this.connections = [];
-                this.nextId = 1;
-                this.selectedComponent = null;
-                this.connectingFrom = null;
-                this.dragPreview = null;
-                
-                this.setRandomTarget();
-                this.setupEventListeners();
+    constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.components = new Map();
+        this.connections = [];
+        this.nextId = 1;
+        this.selectedComponent = null;
+        this.connectingFrom = null;
+        this.isDragging = false;
+        this.dragOffset = null;
+
+        this.setRandomTarget();
+        this.setupEventListeners();
+    }
+
+    setRandomTarget() {
+        const newTarget = Math.floor(Math.random() * 16).toString(2).padStart(4, '0');
+        this.targetCode = newTarget;
+        document.getElementById('targetCode').textContent = this.targetCode;
+        console.log(`New target set: ${this.targetCode}`);
+    }
+
+    setupEventListeners() {
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+    }
+
+    addComponent(type) {
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const x = Math.random() * (canvasRect.width - 100) + 50;
+        const y = Math.random() * (canvasRect.height - 100) + 50;
+
+        this.createComponent(type, x, y);
+    }
+
+    createComponent(type, x, y) {
+        const id = `comp_${this.nextId++}`;
+        const element = document.createElement('div');
+        element.className = 'component';
+        element.id = id;
+        element.style.left = x + 'px';
+        element.style.top = y + 'px';
+
+        const component = {
+            id,
+            type,
+            element,
+            x,
+            y,
+            inputs: [],
+            outputs: [],
+            value: null,
+            logic: null
+        };
+
+        this.configureComponent(component);
+
+        this.components.set(id, component);
+        this.canvas.appendChild(element);
+        this.updateConnectionPoints(component);
+
+        return component;
+    }
+
+    configureComponent(component) {
+        const { type, element } = component;
+
+        switch (type) {
+            case 'NOT':
+                element.textContent = 'NOT';
+                component.inputs = [null];
+                component.outputs = [null];
+                component.logic = (a) => !a;
+                break;
+            case 'XOR':
+                element.textContent = 'XOR';
+                component.inputs = [null, null];
+                component.outputs = [null];
+                component.logic = (a, b) => a !== b;
+                break;
+            case 'NAND':
+                element.textContent = 'NAND';
+                component.inputs = [null, null];
+                component.outputs = [null];
+                component.logic = (a, b) => !(a && b);
+                break;
+            case 'NOR':
+                element.textContent = 'NOR';
+                component.inputs = [null, null];
+                component.outputs = [null];
+                component.logic = (a, b) => !(a || b);
+                break;
+            case 'INPUT_0':
+                element.textContent = '0';
+                element.classList.add('input-node');
+                component.outputs = [0];
+                component.value = 0;
+                break;
+            case 'INPUT_1':
+                element.textContent = '1';
+                element.classList.add('input-node');
+                component.outputs = [1];
+                component.value = 1;
+                break;
+            case 'POWER':
+                element.textContent = 'PWR';
+                element.classList.add('power-supply');
+                component.outputs = [1];
+                component.value = 1;
+                break;
+            case 'OUTPUT_Q0':
+            case 'OUTPUT_Q1':
+            case 'OUTPUT_Q2':
+            case 'OUTPUT_Q3':
+                element.textContent = type.split('_')[1];
+                element.classList.add('output-node');
+                component.inputs = [null];
+                component.outputs = [null]; // ensure outputs array is present to avoid errors
+                break;
+        }
+
+        // Make draggable
+        element.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('connection-point')) return;
+            e.stopPropagation();
+
+            this.selectedComponent = component;
+            this.isDragging = true;
+
+            const rect = element.getBoundingClientRect();
+            this.dragOffset = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+
+            component.element.classList.add('selected');
+        });
+
+        // Double click to delete
+        element.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.deleteComponent(component);
+        });
+    }
+
+    updateConnectionPoints(component) {
+        component.element.querySelectorAll('.connection-point').forEach(point => {
+            point.remove();
+        });
+
+        const { element, inputs, outputs } = component;
+
+        // Input connection points (left)
+        inputs.forEach((input, index) => {
+            const point = document.createElement('div');
+            point.className = 'connection-point';
+            point.style.left = '-6px';
+            point.style.top = `${(index + 1) * (40 / (inputs.length + 1)) - 4}px`;
+            point.dataset.type = 'input';
+            point.dataset.index = index;
+
+            point.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleConnectionClick(component, 'input', index);
+            });
+
+            element.appendChild(point);
+        });
+
+        // Output connection points (right)
+        outputs.forEach((output, index) => {
+            const point = document.createElement('div');
+            point.className = 'connection-point';
+            point.style.right = '-6px';
+            point.style.top = `${(index + 1) * (40 / (outputs.length + 1)) - 4}px`;
+            point.dataset.type = 'output';
+            point.dataset.index = index;
+
+            point.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleConnectionClick(component, 'output', index);
+            });
+
+            element.appendChild(point);
+        });
+    }
+
+    handleConnectionClick(component, type, index) {
+        if (!this.connectingFrom) {
+            if (type === 'output') {
+                this.connectingFrom = { component, type, index };
+                component.element.style.borderColor = '#ffeb3b';
             }
+        } else {
+            if (type === 'input' && this.connectingFrom.type === 'output') {
+                const fromComponent = this.connectingFrom.component;
+                const toComponent = component;
 
-            setRandomTarget() {
-                const newTarget = Math.floor(Math.random() * 16).toString(2).padStart(4, '0');
-                this.targetCode = newTarget;
-                document.getElementById('targetCode').textContent = this.targetCode;
-                console.log(`New target set: ${this.targetCode}`);
-            }
+                const isFromInput = fromComponent.type.startsWith('INPUT_') || fromComponent.type === 'POWER';
+                const isToOutput = toComponent.type.startsWith('OUTPUT_');
 
-            setupEventListeners() {
-                // Drag and drop from toolbox
-                document.querySelectorAll('.tool-item').forEach(item => {
-                    item.addEventListener('dragstart', (e) => {
-                        e.dataTransfer.setData('text/plain', e.target.dataset.type);
-                        this.createDragPreview(e);
-                    });
-                });
-
-                this.canvas.addEventListener('dragover', (e) => e.preventDefault());
-                this.canvas.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    const type = e.dataTransfer.getData('text/plain');
-                    if (type) {
-                        const rect = this.canvas.getBoundingClientRect();
-                        const x = e.clientX - rect.left;
-                        const y = e.clientY - rect.top;
-                        this.createComponent(type, x, y);
-                    }
-                    this.removeDragPreview();
-                });
-
-                // Mouse events for dragging components
-                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-                document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-                document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-
-                // Drag preview following mouse
-                document.addEventListener('dragover', (e) => {
-                    if (this.dragPreview) {
-                        this.dragPreview.style.left = (e.clientX + 10) + 'px';
-                        this.dragPreview.style.top = (e.clientY + 10) + 'px';
-                    }
-                });
-
-                document.addEventListener('dragend', () => {
-                    this.removeDragPreview();
-                });
-            }
-
-            createDragPreview(e) {
-                this.dragPreview = document.createElement('div');
-                this.dragPreview.className = 'drag-preview component';
-                this.dragPreview.textContent = e.target.textContent;
-                this.dragPreview.style.left = (e.clientX + 10) + 'px';
-                this.dragPreview.style.top = (e.clientY + 10) + 'px';
-                document.body.appendChild(this.dragPreview);
-            }
-
-            removeDragPreview() {
-                if (this.dragPreview) {
-                    document.body.removeChild(this.dragPreview);
-                    this.dragPreview = null;
-                }
-            }
-
-            createComponent(type, x, y) {
-                const id = `comp_${this.nextId++}`;
-                const element = document.createElement('div');
-                element.className = 'component';
-                element.id = id;
-                element.style.left = x + 'px';
-                element.style.top = y + 'px';
-
-                const component = {
-                    id,
-                    type,
-                    element,
-                    x,
-                    y,
-                    inputs: [],
-                    outputs: [],
-                    value: null
-                };
-
-                // Configure component based on type
-                this.configureComponent(component);
-                
-                this.components.set(id, component);
-                this.canvas.appendChild(element);
-                this.updateConnectionPoints(component);
-
-                return component;
-            }
-
-            configureComponent(component) {
-                const { type, element } = component;
-                
-                switch (type) {
-                    case 'AND':
-                        element.textContent = 'AND';
-                        component.inputs = [null, null];
-                        component.outputs = [null];
-                        component.logic = (a, b) => a && b;
-                        break;
-                    case 'OR':
-                        element.textContent = 'OR';
-                        component.inputs = [null, null];
-                        component.outputs = [null];
-                        component.logic = (a, b) => a || b;
-                        break;
-                    case 'NOT':
-                        element.textContent = 'NOT';
-                        component.inputs = [null];
-                        component.outputs = [null];
-                        component.logic = (a) => !a;
-                        break;
-                    case 'XOR':
-                        element.textContent = 'XOR';
-                        component.inputs = [null, null];
-                        component.outputs = [null];
-                        component.logic = (a, b) => a !== b;
-                        break;
-                    case 'NAND':
-                        element.textContent = 'NAND';
-                        component.inputs = [null, null];
-                        component.outputs = [null];
-                        component.logic = (a, b) => !(a && b);
-                        break;
-                    case 'NOR':
-                        element.textContent = 'NOR';
-                        component.inputs = [null, null];
-                        component.outputs = [null];
-                        component.logic = (a, b) => !(a || b);
-                        break;
-                    case 'INPUT_0':
-                        element.textContent = '0';
-                        element.classList.add('input-node');
-                        component.outputs = [0];
-                        component.value = 0;
-                        break;
-                    case 'INPUT_1':
-                        element.textContent = '1';
-                        element.classList.add('input-node');
-                        component.outputs = [1];
-                        component.value = 1;
-                        break;
-                    case 'POWER':
-                        element.textContent = 'PWR';
-                        element.classList.add('power-supply');
-                        component.outputs = [1];
-                        component.value = 1;
-                        break;
-                    case 'OUTPUT_Q0':
-                    case 'OUTPUT_Q1':
-                    case 'OUTPUT_Q2':
-                    case 'OUTPUT_Q3':
-                        element.textContent = type.split('_')[1];
-                        element.classList.add('output-node');
-                        component.inputs = [null];
-                        break;
-                }
-
-                // Make draggable
-                element.addEventListener('mousedown', (e) => {
-                    if (e.target.classList.contains('connection-point')) return;
-                    e.stopPropagation();
-                    this.selectedComponent = component;
-                    this.dragOffset = {
-                        x: e.clientX - component.x,
-                        y: e.clientY - component.y
-                    };
-                });
-
-                // Double click to delete
-                element.addEventListener('dblclick', () => {
-                    this.deleteComponent(component);
-                });
-            }
-
-            updateConnectionPoints(component) {
-                // Remove existing connection points
-                component.element.querySelectorAll('.connection-point').forEach(point => {
-                    point.remove();
-                });
-
-                const { element, inputs, outputs } = component;
-                const rect = element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
-
-                // Add input connection points (left side)
-                inputs.forEach((input, index) => {
-                    const point = document.createElement('div');
-                    point.className = 'connection-point';
-                    point.style.left = '-6px';
-                    point.style.top = `${(index + 1) * (rect.height / (inputs.length + 1)) - 4}px`;
-                    point.dataset.type = 'input';
-                    point.dataset.index = index;
-                    
-                    point.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.handleConnectionClick(component, 'input', index);
-                    });
-                    
-                    element.appendChild(point);
-                });
-
-                // Add output connection points (right side)
-                outputs.forEach((output, index) => {
-                    const point = document.createElement('div');
-                    point.className = 'connection-point';
-                    point.style.right = '-6px';
-                    point.style.top = `${(index + 1) * (rect.height / (outputs.length + 1)) - 4}px`;
-                    point.dataset.type = 'output';
-                    point.dataset.index = index;
-                    
-                    point.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.handleConnectionClick(component, 'output', index);
-                    });
-                    
-                    element.appendChild(point);
-                });
-            }
-
-            handleConnectionClick(component, type, index) {
-                if (!this.connectingFrom) {
-                    // Start connection
-                    if (type === 'output') {
-                        this.connectingFrom = { component, type, index };
-                        component.element.style.borderColor = '#ffeb3b';
-                    }
+                if (isFromInput && isToOutput) {
+                    alert("Cannot connect an input component directly to an output component. Use a logic gate in between!");
                 } else {
-                    // Complete connection
-                    if (type === 'input' && this.connectingFrom.type === 'output') {
-                        const fromComponent = this.connectingFrom.component;
-                        const toComponent = component;
+                    this.createConnection(
+                        fromComponent,
+                        this.connectingFrom.index,
+                        toComponent,
+                        index
+                    );
+                }
+            }
 
-                        // Validation: Prevent direct connection from an input node to an output node
-                        const isFromInput = fromComponent.type.startsWith('INPUT_') || fromComponent.type === 'POWER';
-                        const isToOutput = toComponent.type.startsWith('OUTPUT_');
+            this.connectingFrom.component.element.style.borderColor = '#546e7a';
+            this.connectingFrom = null;
+        }
+    }
 
-                        if (isFromInput && isToOutput) {
-                             alert("Cannot connect an input component directly to an output component. Use a logic gate in between!");
+    createConnection(fromComponent, fromIndex, toComponent, toIndex) {
+        // Remove existing connection to this input
+        this.connections = this.connections.filter(conn => {
+            if (conn.to.component === toComponent && conn.to.index === toIndex) {
+                if (conn.element) {
+                    this.canvas.removeChild(conn.element);
+                }
+                return false;
+            }
+            return true;
+        });
+
+        const connection = {
+            from: { component: fromComponent, index: fromIndex },
+            to: { component: toComponent, index: toIndex },
+            element: null
+        };
+
+        this.connections.push(connection);
+        this.updateConnectionVisual(connection);
+        this.evaluateCircuitSilent();
+    }
+
+    updateConnectionVisual(connection) {
+        if (connection.element) {
+            this.canvas.removeChild(connection.element);
+        }
+
+        const fromRect = connection.from.component.element.getBoundingClientRect();
+        const toRect = connection.to.component.element.getBoundingClientRect();
+        const canvasRect = this.canvas.getBoundingClientRect();
+
+        const fromX = fromRect.right - canvasRect.left;
+        const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+        const toX = toRect.left - canvasRect.left;
+        const toY = toRect.top - canvasRect.top + toRect.height / 2;
+
+        const wire = document.createElement('div');
+        wire.className = 'wire';
+
+        const length = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+        const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+
+        wire.style.left = fromX + 'px';
+        wire.style.top = fromY + 'px';
+        wire.style.width = length + 'px';
+        wire.style.transform = `rotate(${angle}deg)`;
+
+        connection.element = wire;
+        this.canvas.appendChild(wire);
+
+        wire.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.deleteConnection(connection);
+        });
+    }
+
+    handleMouseDown(e) {
+        if (e.target === this.canvas) {
+            this.components.forEach(comp => comp.element.classList.remove('selected'));
+            this.selectedComponent = null;
+            this.connectingFrom = null;
+            this.isDragging = false;
+        }
+    }
+
+    handleMouseMove(e) {
+        if (this.selectedComponent && this.isDragging && this.dragOffset) {
+            const rect = this.canvas.getBoundingClientRect();
+
+            const x = Math.max(0, Math.min(rect.width - 60, e.clientX - rect.left - this.dragOffset.x));
+            const y = Math.max(0, Math.min(rect.height - 40, e.clientY - rect.top - this.dragOffset.y));
+
+            this.selectedComponent.x = x;
+            this.selectedComponent.y = y;
+            this.selectedComponent.element.style.left = x + 'px';
+            this.selectedComponent.element.style.top = y + 'px';
+
+            this.updateConnectionPoints(this.selectedComponent);
+            this.updateAllConnectionVisuals();
+        }
+    }
+
+    handleMouseUp(e) {
+        if (this.selectedComponent) {
+            this.selectedComponent.element.classList.remove('selected');
+        }
+        this.selectedComponent = null;
+        this.dragOffset = null;
+        this.isDragging = false;
+    }
+
+    updateAllConnectionVisuals() {
+        this.connections.forEach(connection => {
+            this.updateConnectionVisual(connection);
+        });
+    }
+
+    evaluateCircuitSilent() {
+        this.performEvaluation(false);
+    }
+
+    evaluateCircuit() {
+        this.performEvaluation(true);
+    }
+
+    performEvaluation(checkSuccess = false) {
+        // Reset all component values except inputs and power
+        this.components.forEach(comp => {
+            if (!comp.type.startsWith('INPUT_') && comp.type !== 'POWER') {
+                comp.value = null;
+                if (comp.outputs.length > 0) {
+                    comp.outputs[0] = null;
+                }
+                // Also reset inputs for logic gates and output nodes
+                comp.inputs = comp.inputs.map(() => null);
+            }
+        });
+
+        // Propagate values until stable or max 100 iterations
+        let changed = true;
+        let iterations = 0;
+
+        while (changed && iterations < 100) {
+            changed = false;
+            iterations++;
+
+            // Propagate outputs to connected inputs
+            this.connections.forEach(connection => {
+                const fromValue = connection.from.component.outputs[connection.from.index];
+                const toComponent = connection.to.component;
+                const toIndex = connection.to.index;
+
+                if (fromValue !== null && toComponent.inputs[toIndex] !== fromValue) {
+                    toComponent.inputs[toIndex] = fromValue;
+                    changed = true;
+                }
+            });
+
+            // Evaluate logic gates and output nodes
+            this.components.forEach(comp => {
+                if (comp.logic) {
+                    const inputs = comp.inputs;
+                    if (inputs.every(input => input !== null)) {
+                        let newValue;
+                        if (inputs.length === 1) {
+                            newValue = comp.logic(inputs[0]) ? 1 : 0;
                         } else {
-                            this.createConnection(
-                                fromComponent,
-                                this.connectingFrom.index,
-                                toComponent,
-                                index
-                            );
+                            newValue = comp.logic(inputs[0], inputs[1]) ? 1 : 0;
                         }
-                    }
-                    
-                    // Reset connection state
-                    this.connectingFrom.component.element.style.borderColor = '#546e7a';
-                    this.connectingFrom = null;
-                }
-            }
 
-            createConnection(fromComponent, fromIndex, toComponent, toIndex) {
-                const connection = {
-                    from: { component: fromComponent, index: fromIndex },
-                    to: { component: toComponent, index: toIndex },
-                    element: null
-                };
-
-                // Remove existing connection to this input
-                this.connections = this.connections.filter(conn => {
-                    if (conn.to.component === toComponent && conn.to.index === toIndex) {
-                        if (conn.element) {
-                            this.canvas.removeChild(conn.element);
-                        }
-                        return false;
-                    }
-                    return true;
-                });
-
-                this.connections.push(connection);
-                this.updateConnectionVisual(connection);
-                this.evaluateCircuit();
-            }
-
-            updateConnectionVisual(connection) {
-                if (connection.element) {
-                    this.canvas.removeChild(connection.element);
-                }
-
-                const fromRect = connection.from.component.element.getBoundingClientRect();
-                const toRect = connection.to.component.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
-
-                const fromX = fromRect.right - canvasRect.left;
-                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                const toX = toRect.left - canvasRect.left;
-                const toY = toRect.top - canvasRect.top + toRect.height / 2;
-
-                const wire = document.createElement('div');
-                wire.className = 'wire';
-                
-                const length = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
-                const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
-
-                wire.style.left = fromX + 'px';
-                wire.style.top = fromY + 'px';
-                wire.style.width = length + 'px';
-                wire.style.transform = `rotate(${angle}deg)`;
-
-                connection.element = wire;
-                this.canvas.appendChild(wire);
-
-                // Double click to delete connection
-                wire.addEventListener('dblclick', () => {
-                    this.deleteConnection(connection);
-                });
-            }
-
-            handleMouseDown(e) {
-                if (e.target === this.canvas) {
-                    // Deselect all components
-                    this.components.forEach(comp => {
-                        comp.element.classList.remove('selected');
-                    });
-                    this.selectedComponent = null;
-                    this.connectingFrom = null;
-                }
-            }
-
-            handleMouseMove(e) {
-                if (this.selectedComponent && this.dragOffset) {
-                    const rect = this.canvas.getBoundingClientRect();
-                    const x = Math.max(0, Math.min(rect.width - 60, e.clientX - rect.left - this.dragOffset.x));
-                    const y = Math.max(0, Math.min(rect.height - 40, e.clientY - rect.top - this.dragOffset.y));
-                    
-                    this.selectedComponent.x = x;
-                    this.selectedComponent.y = y;
-                    this.selectedComponent.element.style.left = x + 'px';
-                    this.selectedComponent.element.style.top = y + 'px';
-                    
-                    this.updateConnectionPoints(this.selectedComponent);
-                    this.updateAllConnectionVisuals();
-                }
-            }
-
-            handleMouseUp(e) {
-                this.selectedComponent = null;
-                this.dragOffset = null;
-            }
-
-            updateAllConnectionVisuals() {
-                this.connections.forEach(connection => {
-                    this.updateConnectionVisual(connection);
-                });
-            }
-
-            evaluateCircuit() {
-                // Reset all component values
-                this.components.forEach(comp => {
-                    if (!comp.type.startsWith('INPUT_') && comp.type !== 'POWER') {
-                        comp.value = null;
-                    }
-                });
-
-                // Propagate values through connections
-                let changed = true;
-                let iterations = 0;
-                while (changed && iterations < 100) {
-                    changed = false;
-                    iterations++;
-
-                    this.connections.forEach(connection => {
-                        const fromValue = connection.from.component.outputs[connection.from.index];
-                        const toComponent = connection.to.component;
-                        const toIndex = connection.to.index;
-
-                        if (fromValue !== null && toComponent.inputs[toIndex] !== fromValue) {
-                            toComponent.inputs[toIndex] = fromValue;
+                        if (comp.outputs[0] !== newValue) {
+                            comp.outputs[0] = newValue;
+                            comp.value = newValue;
                             changed = true;
                         }
-                    });
-
-                    // Evaluate logic gates
-                    this.components.forEach(comp => {
-                        if (comp.logic) {
-                            const inputs = comp.inputs;
-                            if (inputs.every(input => input !== null)) {
-                                let newValue;
-                                if (inputs.length === 1) {
-                                    newValue = comp.logic(inputs[0]) ? 1 : 0;
-                                } else {
-                                    newValue = comp.logic(inputs[0], inputs[1]) ? 1 : 0;
-                                }
-
-                                if (comp.outputs[0] !== newValue) {
-                                    comp.outputs[0] = newValue;
-                                    comp.value = newValue;
-                                    changed = true;
-                                }
-                            }
-                        }
-                    });
+                    }
+                } else if (comp.type.startsWith('OUTPUT_')) {
+                    // Output components just pass input to output for display
+                    const inputVal = comp.inputs[0];
+                    if (comp.outputs[0] !== inputVal) {
+                        comp.outputs[0] = inputVal;
+                        comp.value = inputVal;
+                        changed = true;
+                    }
                 }
+            });
+        }
 
-                this.updateOutput();
-                this.updateWireVisuals();
+        this.updateOutput(checkSuccess);
+        this.updateWireVisuals();
+    }
+
+    // updateOutput(checkSuccess = false) {
+    //     const outputs = { Q0: 0, Q1: 0, Q2: 0, Q3: 0 };
+
+    //     this.components.forEach(comp => {
+    //         if (comp.type.startsWith('OUTPUT_')) {
+    //             const outputName = comp.type.split('_')[1];
+    //             outputs[outputName] = comp.outputs[0] || 0;
+    //         }
+    //     });
+
+    //     ['Q0', 'Q1', 'Q2', 'Q3'].forEach(q => {
+    //         const val = outputs[q];
+    //         const el = document.getElementById(q.toLowerCase());
+    //         if (el) {
+    //             el.textContent = val;
+    //             el.className = `bit ${val ? 'high' : 'low'}`;
+    //         }
+    //     });
+
+    //     if (checkSuccess) {
+    //         const currentOutput = `${outputs.Q3}${outputs.Q2}${outputs.Q1}${outputs.Q0}`;
+    //         console.log(`Current output: ${currentOutput}, Target: ${this.targetCode}`);
+
+    //         if (currentOutput === this.targetCode) {
+    //             this.showSuccess();
+    //         }
+    //     }
+    //}
+    updateOutput(checkSuccess = false) {
+        // Collect output values from OUTPUT_Q3 ... OUTPUT_Q0 components
+        const outputs = { Q3: 0, Q2: 0, Q1: 0, Q0: 0 };
+
+        this.components.forEach(comp => {
+            if (comp.type.startsWith('OUTPUT_')) {
+                const outputName = comp.type.split('_')[1]; // e.g., Q0, Q1, Q2, Q3
+                outputs[outputName] = comp.outputs[0] || 0;
             }
+        });
 
-            updateOutput() {
-                const outputs = { Q0: 0, Q1: 0, Q2: 0, Q3: 0 };
+        // Update the display elements in Q3, Q2, Q1, Q0 order
+        ['Q3', 'Q2', 'Q1', 'Q0'].forEach(q => {
+            const val = outputs[q];
+            const el = document.getElementById(q.toLowerCase());
+            if (el) {
+                el.textContent = val;
+                el.className = `bit ${val ? 'high' : 'low'}`;
+            }
+        });
 
-                this.components.forEach(comp => {
-                    if (comp.type.startsWith('OUTPUT_')) {
-                        const outputName = comp.type.split('_')[1];
-                        outputs[outputName] = comp.inputs[0] || 0;
-                    }
-                });
+        if (checkSuccess) {
+            // Construct current output string in Q0Q1Q2Q3 order to match target string
+            const currentOutput = `${outputs.Q0}${outputs.Q1}${outputs.Q2}${outputs.Q3}`;
+            console.log(`Current output: ${currentOutput}, Target: ${this.targetCode}`);
 
-                // Update display
-                document.getElementById('q3').textContent = outputs.Q3;
-                document.getElementById('q3').className = `bit ${outputs.Q3 ? 'high' : 'low'}`;
-                
-                document.getElementById('q2').textContent = outputs.Q2;
-                document.getElementById('q2').className = `bit ${outputs.Q2 ? 'high' : 'low'}`;
-                
-                document.getElementById('q1').textContent = outputs.Q1;
-                document.getElementById('q1').className = `bit ${outputs.Q1 ? 'high' : 'low'}`;
-                
-                document.getElementById('q0').textContent = outputs.Q0;
-                document.getElementById('q0').className = `bit ${outputs.Q0 ? 'high' : 'low'}`;
+            if (currentOutput === this.targetCode) {
+                this.showSuccess();
+            }
+        }
+    }
 
-                // Check if target is matched
-                const currentOutput = `${outputs.Q3}${outputs.Q2}${outputs.Q1}${outputs.Q0}`;
-                if (currentOutput === this.targetCode) {
-                    this.showSuccess();
+    updateWireVisuals() {
+        this.connections.forEach(connection => {
+            const value = connection.from.component.outputs[connection.from.index];
+            if (connection.element) {
+                connection.element.classList.toggle('active', value === 1);
+            }
+        });
+    }
+
+    showSuccess() {
+        if (document.querySelector('.success-message')) return;
+
+        const message = document.createElement('div');
+        message.className = 'success-message';
+        message.textContent = '🎉 Circuit Complete! Target Achieved! 🎉';
+        document.body.appendChild(message);
+
+        setTimeout(() => {
+            if (document.body.contains(message)) {
+                document.body.removeChild(message);
+                this.setRandomTarget();
+            }
+        }, 3000);
+    }
+
+    deleteComponent(component) {
+        this.connections = this.connections.filter(conn => {
+            if (conn.from.component === component || conn.to.component === component) {
+                if (conn.element) {
+                    this.canvas.removeChild(conn.element);
                 }
+                return false;
             }
+            return true;
+        });
 
-            updateWireVisuals() {
-                this.connections.forEach(connection => {
-                    const value = connection.from.component.outputs[connection.from.index];
-                    if (connection.element) {
-                        connection.element.classList.toggle('active', value === 1);
-                    }
-                });
-            }
-
-            showSuccess() {
-                if (document.querySelector('.success-message')) return;
-
-                const message = document.createElement('div');
-                message.className = 'success-message';
-                message.textContent = '🎉 Circuit Complete! Target Achieved! 🎉';
-                document.body.appendChild(message);
-
-                setTimeout(() => {
-                    if (document.body.contains(message)) {
-                        document.body.removeChild(message);
-                    }
-                }, 3000);
-            }
-
-            deleteComponent(component) {
-                // Remove connections
-                this.connections = this.connections.filter(conn => {
-                    if (conn.from.component === component || conn.to.component === component) {
-                        if (conn.element) {
-                            this.canvas.removeChild(conn.element);
-                        }
-                        return false;
-                    }
-                    return true;
-                });
-
-                // Remove component
-                this.canvas.removeChild(component.element);
-                this.components.delete(component.id);
-                this.evaluateCircuit();
-            }
-
-            deleteConnection(connection) {
-                const index = this.connections.indexOf(connection);
-                if (index !== -1) {
-                    this.connections.splice(index, 1);
-                    if (connection.element) {
-                        this.canvas.removeChild(connection.element);
-                    }
-                    this.evaluateCircuit();
-                }
-            }
-
-            reset() {
-                // Clear all components
-                this.components.forEach(comp => {
-                    this.canvas.removeChild(comp.element);
-                });
-                this.components.clear();
-
-                // Clear all connections
-                this.connections.forEach(conn => {
-                    if (conn.element) {
-                        this.canvas.removeChild(conn.element);
-                    }
-                });
-                this.connections = [];
-
-                this.selectedComponent = null;
-                this.connectingFrom = null;
-                this.nextId = 1;
-                this.updateOutput();
-            }
-
-            saveCircuit() {
-                const data = {
-                    components: Array.from(this.components.values()).map(comp => ({
-                        id: comp.id,
-                        type: comp.type,
-                        x: comp.x,
-                        y: comp.y
-                    })),
-                    connections: this.connections.map(conn => ({
-                        from: { id: conn.from.component.id, index: conn.from.index },
-                        to: { id: conn.to.component.id, index: conn.to.index }
-                    })),
-                    targetCode: this.targetCode
-                };
-
-                const jsonString = JSON.stringify(data, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'circuit.json';
-                a.click();
-                URL.revokeObjectURL(url);
-            }
-
-            loadCircuit() {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
-                input.onchange = (e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                            try {
-                                const data = JSON.parse(event.target.result);
-                                this.reset();
-                                
-                                const componentsById = new Map();
-                                data.components.forEach(compData => {
-                                    const comp = this.createComponent(compData.type, compData.x, compData.y);
-                                    comp.id = compData.id;
-                                    this.components.set(comp.id, comp);
-                                    componentsById.set(comp.id, comp);
-                                });
-                                this.nextId = Math.max(...data.components.map(c => parseInt(c.id.split('_')[1]))) + 1;
-                                
-                                data.connections.forEach(connData => {
-                                    const fromComp = componentsById.get(connData.from.id);
-                                    const toComp = componentsById.get(connData.to.id);
-                                    if (fromComp && toComp) {
-                                        this.createConnection(fromComp, connData.from.index, toComp, connData.to.index);
-                                    }
-                                });
-
-                                // Ensure visuals are updated after all components are created
-                                this.components.forEach(comp => this.updateConnectionPoints(comp));
-                                this.updateAllConnectionVisuals();
-                                this.evaluateCircuit();
-                                
-                            } catch (error) {
-                                alert("Failed to load circuit: " + error.message);
-                            }
-                        };
-                        reader.readAsText(file);
-                    }
-                };
-                input.click();
-            }
+        if (this.components.has(component.id)) {
+            this.canvas.removeChild(component.element);
+            this.components.delete(component.id);
         }
 
-        const circuitBuilder = new CircuitBuilder();
+        this.evaluateCircuitSilent();
+    }
 
-        function evaluateCircuit() {
-            circuitBuilder.evaluateCircuit();
+    deleteConnection(connection) {
+        const index = this.connections.indexOf(connection);
+        if (index !== -1) {
+            this.connections.splice(index, 1);
+            if (connection.element) {
+                this.canvas.removeChild(connection.element);
+            }
+            this.evaluateCircuitSilent();
         }
+    }
 
-        function resetCircuit() {
-            circuitBuilder.reset();
-        }
+    reset() {
+        this.components.forEach(comp => {
+            this.canvas.removeChild(comp.element);
+        });
+        this.components.clear();
 
-        function saveCircuit() {
-            circuitBuilder.saveCircuit();
-        }
+        this.connections.forEach(conn => {
+            if (conn.element) {
+                this.canvas.removeChild(conn.element);
+            }
+        });
+        this.connections = [];
 
-        function loadCircuit() {
-            circuitBuilder.loadCircuit();
-        }
+        // Reset output display bits to zero/low
+        ['q0', 'q1', 'q2', 'q3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = '0';
+                el.className = 'bit low';
+            }
+        });
+
+        this.selectedComponent = null;
+        this.connectingFrom = null;
+        this.nextId = 1;
+        this.updateOutput(false);
+    }
+}
+
+const circuitBuilder = new CircuitBuilder();
+
+function addComponent(type) {
+    circuitBuilder.addComponent(type);
+}
+
+function evaluateCircuit() {
+    circuitBuilder.evaluateCircuit();
+}
+
+function resetCircuit() {
+    circuitBuilder.reset();
+}
+
+function newTarget() {
+    circuitBuilder.setRandomTarget();
+}
     </script>
+
+    <div class="rules-window">
+        <div class="rules-window">
+    <h3>Rules</h3>
+    <ul>
+        <li>Drag gates, inputs, and outputs from the toolbox.</li>
+        <li>Connect components using the small blue dots.</li>
+        <li>You cannot connect input directly to output.</li>
+        <li>Double-click a component or wire to delete it.</li>
+        <li>Match the circuit output with the target code.</li>
+    </ul>
+</div>
+
 </body>
 </html>
